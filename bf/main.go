@@ -9,8 +9,6 @@ import (
 	"os"
 	"slices"
 	"strconv"
-
-	"github.com/rpalo/learning/bf/bf"
 )
 
 const USAGE = `
@@ -49,7 +47,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		bf.EvalBf(string(contents), buffer_size, debug)
+		EvalBf(string(contents), buffer_size, debug)
 	} else {
 		repl()
 	}
@@ -73,6 +71,6 @@ func repl() {
 		if len(line) == 0 {
 			return
 		}
-		bf.EvalBf(line, buffer_size, debug)
+		EvalBf(line, buffer_size, debug)
 	}
 }

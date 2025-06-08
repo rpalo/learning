@@ -1,4 +1,4 @@
-package bf
+package main
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ func EvalBf(source string, buffer_size int, debug bool) {
 		case '>':
 			d = (d + 1) % buffer_size
 		case '<':
-			d = (d - 1) % buffer_size
+			d = (d - 1 + buffer_size) % buffer_size
 		case '+':
 			buffer[d]++
 		case '-':
@@ -34,7 +34,7 @@ func EvalBf(source string, buffer_size int, debug bool) {
 			}
 		case '[':
 			if buffer[d] == 0 {
-				for ; source[i] != ']' || loopCounter != 0; i++ {
+				for i++; source[i] != ']' || loopCounter != 0; i++ {
 					if source[i] == '[' {
 						loopCounter++
 					} else if source[i] == ']' {
@@ -44,7 +44,7 @@ func EvalBf(source string, buffer_size int, debug bool) {
 			}
 		case ']':
 			if buffer[d] != 0 {
-				for ; source[i] != '[' || loopCounter != 0; i-- {
+				for i--; source[i] != '[' || loopCounter != 0; i-- {
 					if source[i] == '[' {
 						loopCounter--
 					} else if source[i] == ']' {
