@@ -23,13 +23,17 @@ type Add struct {
 type Move struct {
 	amount int
 }
+
 type Input struct{}
 type Output struct{}
-
+type Clear struct {
+	step bool
+}
 type Opcode any
 
 func Compile(source string) ([]Opcode, error) {
 	source = stripComments(source)
+	source = replaceOptimizations(source)
 	result := make([]Opcode, 0, len(source))
 
 	for i := 0; i < len(source); i++ {
@@ -58,10 +62,19 @@ func Compile(source string) ([]Opcode, error) {
 			result = append(result, &RJump{-1})
 		case ']':
 			result = append(result, &LJump{-1})
+		case 'x':
+			result = append(result, &Clear{false})
+		case 'X':
+			result = append(result, &Clear{true})
 		}
 	}
 	err := matchLoops(result)
 	return result, err
+}
+
+func stripComments(source string) string {
+	pattern := regexp.MustCompile(`[^\+\-\,\.\[\]\<\>]`)
+	return pattern.ReplaceAllLiteralString(source, "")
 }
 
 func consolidateRun(source string, start int) int {
@@ -72,9 +85,12 @@ func consolidateRun(source string, start int) int {
 	return count
 }
 
-func stripComments(source string) string {
-	pattern := regexp.MustCompile(`[^\+\-\,\.\[\]\<\>]`)
-	return pattern.ReplaceAllLiteralString(source, "")
+func replaceOptimizations(source string) string {
+	clearAndStep := regexp.MustCompile(`\[\-\]\>`)
+	source = clearAndStep.ReplaceAllLiteralString(source, "X")
+	clear_ := regexp.MustCompile(`\[\-\]`)
+	source = clear_.ReplaceAllLiteralString(source, "x")
+	return source
 }
 
 func matchLoops(ops []Opcode) error {

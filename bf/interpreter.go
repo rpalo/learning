@@ -87,6 +87,13 @@ func EvalBfOps(ops []Opcode, buffer_size int, debug bool) {
 			if buffer[d] != 0 {
 				i = v.target
 			}
+		case *Clear:
+			buffer[d] = 0
+			if v.step {
+				d++
+			}
+		default:
+			panic(fmt.Sprintf("Unrecognized opcode %T\n", ops[i]))
 		}
 		i++
 	}

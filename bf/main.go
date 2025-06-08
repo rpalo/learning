@@ -67,7 +67,8 @@ func main() {
 		EvalBfOps(ops, buffer_size, debug)
 	case "repl":
 		repl()
-
+	default:
+		fmt.Print(USAGE)
 	}
 }
 
