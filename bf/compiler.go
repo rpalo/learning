@@ -2,8 +2,8 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"regexp"
+	"strings"
 )
 
 var UnmatchedBracket = errors.New("Syntax error: unmatched square bracket")
@@ -23,6 +23,12 @@ type Add struct {
 type Move struct {
 	amount int
 }
+type Transfer struct {
+	distance int
+}
+type FindEmpty struct {
+	step int
+}
 
 type Input struct{}
 type Output struct{}
@@ -34,42 +40,54 @@ type Opcode any
 func Compile(source string) ([]Opcode, error) {
 	source = stripComments(source)
 	source = replaceOptimizations(source)
-	result := make([]Opcode, 0, len(source))
+	ops := make([]Opcode, 0, len(source))
 
 	for i := 0; i < len(source); i++ {
 		switch source[i] {
 		case '+':
 			count := consolidateRun(source, i)
-			result = append(result, &Add{count})
+			ops = append(ops, &Add{count})
 			i += count - 1
 		case '-':
 			count := consolidateRun(source, i)
-			result = append(result, &Add{-1 * count})
+			ops = append(ops, &Add{-1 * count})
 			i += count - 1
 		case '>':
 			count := consolidateRun(source, i)
-			result = append(result, &Move{count})
+			ops = append(ops, &Move{count})
 			i += count - 1
 		case '<':
 			count := consolidateRun(source, i)
-			result = append(result, &Move{-1 * count})
+			ops = append(ops, &Move{-1 * count})
 			i += count - 1
 		case ',':
-			result = append(result, &Input{})
+			ops = append(ops, &Input{})
 		case '.':
-			result = append(result, &Output{})
+			ops = append(ops, &Output{})
 		case '[':
-			result = append(result, &RJump{-1})
+			ops = append(ops, &RJump{-1})
 		case ']':
-			result = append(result, &LJump{-1})
+			ops = append(ops, &LJump{-1})
 		case 'x':
-			result = append(result, &Clear{false})
+			ops = append(ops, &Clear{false})
 		case 'X':
-			result = append(result, &Clear{true})
+			ops = append(ops, &Clear{true})
 		}
 	}
-	err := matchLoops(result)
-	return result, err
+	err := matchLoops(ops)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := optimize(ops)
+	err = matchLoops(result)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func stripComments(source string) string {
@@ -86,10 +104,8 @@ func consolidateRun(source string, start int) int {
 }
 
 func replaceOptimizations(source string) string {
-	clearAndStep := regexp.MustCompile(`\[\-\]\>`)
-	source = clearAndStep.ReplaceAllLiteralString(source, "X")
-	clear_ := regexp.MustCompile(`\[\-\]`)
-	source = clear_.ReplaceAllLiteralString(source, "x")
+	source = strings.ReplaceAll(source, "[-]>", "X") // Clear cell and step
+	source = strings.ReplaceAll(source, "[-]", "x")  // Clear cell
 	return source
 }
 
@@ -128,8 +144,59 @@ func findMatchingLJump(ops []Opcode, start int) (int, error) {
 	return 0, UnmatchedBracket
 }
 
-func PrintOps(ops []Opcode) {
-	for i, op := range ops {
-		fmt.Printf("%05d:\t%T%v\n", i, op, op)
+func optimize(ops []Opcode) []Opcode {
+	result := make([]Opcode, 0, len(ops))
+
+	for i := 0; i < len(ops); i++ {
+		switch v := ops[i].(type) {
+		case *RJump:
+			if transfer := optimizeTransfer(ops, i); transfer != nil {
+				result = append(result, transfer)
+				i += 5
+			} else if find := optimizeFindEmpty(ops, i); find != nil {
+				result = append(result, find)
+				i += 2
+			} else {
+				result = append(result, v)
+			}
+		default:
+			result = append(result, v)
+		}
 	}
+	return result
+}
+
+func optimizeTransfer(ops []Opcode, i int) *Transfer {
+	rjump, _ := ops[i].(*RJump)
+	if rjump.target != i+5 {
+		return nil
+	}
+	sub, subOk := ops[i+1].(*Add)
+	move, moveOk := ops[i+2].(*Move)
+	add, addOk := ops[i+3].(*Add)
+	back, backOk := ops[i+4].(*Move)
+
+	if !subOk || !moveOk || !addOk || !backOk {
+		return nil
+	}
+
+	if sub.amount == -1*add.amount && move.amount == -1*back.amount {
+		return &Transfer{move.amount}
+	}
+	return nil
+}
+
+func optimizeFindEmpty(ops []Opcode, i int) *FindEmpty {
+	rjump, _ := ops[i].(*RJump)
+	if rjump.target != i+2 {
+		return nil
+	}
+
+	move, ok := ops[i+1].(*Move)
+
+	if !ok {
+		return nil
+	}
+
+	return &FindEmpty{move.amount}
 }

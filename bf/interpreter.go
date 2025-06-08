@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"sort"
 )
 
 func EvalBf(source string, buffer_size int, debug bool) {
@@ -57,10 +58,11 @@ func EvalBf(source string, buffer_size int, debug bool) {
 	}
 }
 
-func EvalBfOps(ops []Opcode, buffer_size int, debug bool) {
+func EvalBfOps(ops []Opcode) {
 	i := 0
 	d := 0
 	buffer := make([]int, buffer_size)
+	loopCount := make(map[int]int)
 
 	for i >= 0 && i < len(ops) {
 		if debug {
@@ -72,7 +74,7 @@ func EvalBfOps(ops []Opcode, buffer_size int, debug bool) {
 		case *Add:
 			buffer[d] += v.amount
 		case *Output:
-			fmt.Printf("%c", buffer[d])
+			fmt.Printf(outputPattern, buffer[d])
 		case *Input:
 			_, err := fmt.Scanf("%c", &buffer[d])
 
@@ -80,6 +82,7 @@ func EvalBfOps(ops []Opcode, buffer_size int, debug bool) {
 				log.Fatal(err)
 			}
 		case *RJump:
+			loopCount[i] += 1
 			if buffer[d] == 0 {
 				i = v.target
 			}
@@ -92,9 +95,41 @@ func EvalBfOps(ops []Opcode, buffer_size int, debug bool) {
 			if v.step {
 				d++
 			}
+		case *Transfer:
+			newInd := (d + v.distance + buffer_size) % buffer_size
+			buffer[newInd] += buffer[d]
+			buffer[d] = 0
+		case *FindEmpty:
+			for buffer[d] != 0 {
+				d = (d + v.step + buffer_size) % buffer_size
+			}
 		default:
 			panic(fmt.Sprintf("Unrecognized opcode %T\n", ops[i]))
 		}
 		i++
+	}
+	if loopcheck {
+		printLoops(ops, loopCount)
+	}
+}
+
+type KV struct {
+	key   int
+	value int
+}
+
+func printLoops(ops []Opcode, loops map[int]int) {
+	items := make([]KV, 0, len(loops))
+	for i, count := range loops {
+		items = append(items, KV{i, count})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].value < items[j].value
+	})
+	for _, pair := range items {
+		start, _ := ops[pair.key].(*RJump)
+		fmt.Printf("%d: ", pair.value)
+		PrintOpsCompact(ops[pair.key : start.target+1])
+		fmt.Print("\n")
 	}
 }

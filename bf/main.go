@@ -21,6 +21,8 @@ commands:
 
 var buffer_size = 30000
 var debug = false
+var loopcheck = false
+var outputPattern = "%c"
 
 func init() {
 	if val := os.Getenv("BF_BUFFER_SIZE"); val != "" {
@@ -33,6 +35,12 @@ func init() {
 	}
 	if os.Getenv("BF_DEBUG") != "" {
 		debug = true
+	}
+	if os.Getenv("BF_LOOPCHECK") != "" {
+		loopcheck = true
+	}
+	if os.Getenv("BF_NUMBERS") != "" {
+		outputPattern = "%d "
 	}
 }
 
@@ -64,7 +72,7 @@ func main() {
 	case "compile":
 		PrintOps(ops)
 	case "run":
-		EvalBfOps(ops, buffer_size, debug)
+		EvalBfOps(ops)
 	case "repl":
 		repl()
 	default:
@@ -95,7 +103,7 @@ func repl() {
 		if err != nil {
 			fmt.Println(err)
 		} else {
-			EvalBfOps(ops, buffer_size, debug)
+			EvalBfOps(ops)
 		}
 	}
 }

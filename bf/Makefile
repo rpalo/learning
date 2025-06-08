@@ -6,4 +6,4 @@ bf: $(sources)
 	go build
 
 benchmark: bf
-	time ./bf examples/mandelbrot.bf > /dev/null 2>&1
+	time ./bf run examples/mandelbrot.bf > /dev/null 2>&1
