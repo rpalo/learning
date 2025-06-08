@@ -1,5 +1,8 @@
 package main
 
+// compiler.go contains all the functions for compiling bf code to opcodes
+// and optimizing those opcodes for efficiency
+
 import (
 	"errors"
 	"regexp"
@@ -8,35 +11,56 @@ import (
 
 var UnmatchedBracket = errors.New("Syntax error: unmatched square bracket")
 
+// RJump tells the VM to jump "right" to the matching ']' if the current buffer
+// value is 0.
 type RJump struct {
 	target int
 }
 
+// LJump tells the VM to jump "left" to the matching '[' if the current buffer
+// value is not 0.
 type LJump struct {
 	target int
 }
 
+// Add increments the current buffer value by some amount.
 type Add struct {
 	amount int
 }
 
+// Move moves the buffer pointer some amount left or right.
 type Move struct {
 	amount int
 }
+
+// Transfer shifts all of the value from one buffer slot to another slot some
+// distance away.
 type Transfer struct {
 	distance int
 }
+
+// Find empty skips forward some number of steps repeatedly until it finds an
+// empty buffer slot
 type FindEmpty struct {
 	step int
 }
 
+// Input causes the interpreter to read a character of input from stdin into
+// the current buffer slot
 type Input struct{}
+
+// Output causes the interpreter to write a character of output from the
+// current buffer slot (using its ascii character value).
 type Output struct{}
+
+// Clear sets the current buffer slot to zero, and moves one buffer slot right
+// if step is true.
 type Clear struct {
 	step bool
 }
 type Opcode any
 
+// Compile compiles bf source to Opcodes, and optimizes them.
 func Compile(source string) ([]Opcode, error) {
 	source = stripComments(source)
 	source = replaceOptimizations(source)
@@ -90,11 +114,14 @@ func Compile(source string) ([]Opcode, error) {
 	return result, nil
 }
 
+// stripComments removes any characters that are not canonical operation chars.
 func stripComments(source string) string {
 	pattern := regexp.MustCompile(`[^\+\-\,\.\[\]\<\>]`)
 	return pattern.ReplaceAllLiteralString(source, "")
 }
 
+// consolidateRun counts how many of the same character are in a row starting
+// at `start`
 func consolidateRun(source string, start int) int {
 	count := 1
 	for i := start + 1; i < len(source) && source[i] == source[i-1]; i++ {
@@ -103,12 +130,15 @@ func consolidateRun(source string, start int) int {
 	return count
 }
 
+// replaceOptimizations performs simple string replacement optimizations.
 func replaceOptimizations(source string) string {
 	source = strings.ReplaceAll(source, "[-]>", "X") // Clear cell and step
 	source = strings.ReplaceAll(source, "[-]", "x")  // Clear cell
 	return source
 }
 
+// matchLoops attempts to set the jump opcodes' `target` fields to point to
+// their matching jumps and returns an error if there are unmatched brackets.
 func matchLoops(ops []Opcode) error {
 	for i, op := range ops {
 		if rjump, ok := op.(*RJump); ok {
@@ -129,6 +159,7 @@ func matchLoops(ops []Opcode) error {
 	return nil
 }
 
+// findMatchingLJump finds the index of the matching jump op.
 func findMatchingLJump(ops []Opcode, start int) (int, error) {
 	loopCounter := 0
 
@@ -144,6 +175,9 @@ func findMatchingLJump(ops []Opcode, start int) (int, error) {
 	return 0, UnmatchedBracket
 }
 
+// optimize performs post-compilation optimizations on opcodes.  It returns
+// a new slice of opcodes.  Note: currently these new opcodes' jump targets
+// need re-matched again.
 func optimize(ops []Opcode) []Opcode {
 	result := make([]Opcode, 0, len(ops))
 
@@ -166,6 +200,8 @@ func optimize(ops []Opcode) []Opcode {
 	return result
 }
 
+// optimizeTransfer finds the "transfer" idiom and replaces it with a transfer
+// opcode.
 func optimizeTransfer(ops []Opcode, i int) *Transfer {
 	rjump, _ := ops[i].(*RJump)
 	if rjump.target != i+5 {
@@ -186,6 +222,8 @@ func optimizeTransfer(ops []Opcode, i int) *Transfer {
 	return nil
 }
 
+// optimizeFindEmpty finds the "find empty" idiom and replaces it with a findempty
+// opcode.
 func optimizeFindEmpty(ops []Opcode, i int) *FindEmpty {
 	rjump, _ := ops[i].(*RJump)
 	if rjump.target != i+2 {

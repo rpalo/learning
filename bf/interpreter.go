@@ -1,12 +1,14 @@
 package main
 
+// interpreter.go has the actual "VM" code interpretation functionality
+
 import (
 	"fmt"
 	"log"
-	"sort"
 )
 
-func EvalBf(source string, buffer_size int, debug bool) {
+// EvalBf evaluates a string of bf code with no optimizations as-is
+func EvalBf(source string) {
 	i := 0
 	d := 0
 	loopCounter := 0
@@ -58,6 +60,7 @@ func EvalBf(source string, buffer_size int, debug bool) {
 	}
 }
 
+// EvalBfOps evaluates compiled, optimized BF opcodes.
 func EvalBfOps(ops []Opcode) {
 	i := 0
 	d := 0
@@ -109,27 +112,6 @@ func EvalBfOps(ops []Opcode) {
 		i++
 	}
 	if loopcheck {
-		printLoops(ops, loopCount)
-	}
-}
-
-type KV struct {
-	key   int
-	value int
-}
-
-func printLoops(ops []Opcode, loops map[int]int) {
-	items := make([]KV, 0, len(loops))
-	for i, count := range loops {
-		items = append(items, KV{i, count})
-	}
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].value < items[j].value
-	})
-	for _, pair := range items {
-		start, _ := ops[pair.key].(*RJump)
-		fmt.Printf("%d: ", pair.value)
-		PrintOpsCompact(ops[pair.key : start.target+1])
-		fmt.Print("\n")
+		PrintLoops(ops, loopCount)
 	}
 }

@@ -80,6 +80,7 @@ func main() {
 	}
 }
 
+// repl interprets bf syntax interactively in a REPL.
 func repl() {
 	reader := bufio.NewReader(os.Stdin)
 	// TODO: make repl remember buffer between lines
