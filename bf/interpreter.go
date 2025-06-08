@@ -67,10 +67,8 @@ func EvalBfOps(ops []Opcode, buffer_size int, debug bool) {
 			fmt.Printf("%05d: %T%v, %d: [%d]\n", i, ops[i], ops[i], d, buffer[d])
 		}
 		switch v := ops[i].(type) {
-		case *Right:
-			d = (d + 1) % buffer_size
-		case *Left:
-			d = (d - 1 + buffer_size) % buffer_size
+		case *Move:
+			d = (d + v.amount + buffer_size) % buffer_size
 		case *Add:
 			buffer[d] += v.amount
 		case *Output:

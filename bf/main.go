@@ -7,14 +7,16 @@ import (
 	"io"
 	"log"
 	"os"
-	"slices"
 	"strconv"
 )
 
 const USAGE = `
-usage: bf [-h|FILENAME]
+usage: bf COMMAND [ARGS...]
 
-Evaluate brainf*ck.  If FILENAME is provided, run that.  Otherwise run a REPL.
+commands:
+	compile FILENAME: compile the bf file at FILENAME and output the ops.
+	run FILENAME: compile the bf file at FILENAME and evaluate
+	repl: Initiate an interactive repl
 `
 
 var buffer_size = 30000
@@ -35,35 +37,43 @@ func init() {
 }
 
 func main() {
-	if slices.Contains(os.Args, "-h") {
+	if len(os.Args) == 1 || os.Args[1] == "-h" {
 		fmt.Print(USAGE)
 		return
 	}
 
-	if len(os.Args) == 2 {
-		contents, err := os.ReadFile(os.Args[1])
+	command := os.Args[1]
+	var ops []Opcode
+
+	if len(os.Args) == 3 {
+		bytes_, err := os.ReadFile(os.Args[2])
 
 		if err != nil {
 			log.Fatal(err)
 		}
+		contents := string(bytes_)
 
-		ops, err := Compile(string(contents))
+		ops, err = Compile(contents)
 
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
 
-		if debug {
-			PrintOps(ops)
-		}
+	switch command {
+	case "compile":
+		PrintOps(ops)
+	case "run":
 		EvalBfOps(ops, buffer_size, debug)
-	} else {
+	case "repl":
 		repl()
+
 	}
 }
 
 func repl() {
 	reader := bufio.NewReader(os.Stdin)
+	// TODO: make repl remember buffer between lines
 
 	for {
 		fmt.Print("bf> ")

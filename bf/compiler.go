@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"regexp"
 )
 
 var UnmatchedBracket = errors.New("Syntax error: unmatched square bracket")
@@ -19,26 +20,36 @@ type Add struct {
 	amount int
 }
 
-type Right struct{}
-type Left struct{}
+type Move struct {
+	amount int
+}
 type Input struct{}
 type Output struct{}
 
-type Opcode interface{}
+type Opcode any
 
 func Compile(source string) ([]Opcode, error) {
+	source = stripComments(source)
 	result := make([]Opcode, 0, len(source))
 
-	for _, c := range source {
-		switch c {
+	for i := 0; i < len(source); i++ {
+		switch source[i] {
 		case '+':
-			result = append(result, &Add{1})
+			count := consolidateRun(source, i)
+			result = append(result, &Add{count})
+			i += count - 1
 		case '-':
-			result = append(result, &Add{-1})
+			count := consolidateRun(source, i)
+			result = append(result, &Add{-1 * count})
+			i += count - 1
 		case '>':
-			result = append(result, &Right{})
+			count := consolidateRun(source, i)
+			result = append(result, &Move{count})
+			i += count - 1
 		case '<':
-			result = append(result, &Left{})
+			count := consolidateRun(source, i)
+			result = append(result, &Move{-1 * count})
+			i += count - 1
 		case ',':
 			result = append(result, &Input{})
 		case '.':
@@ -51,6 +62,19 @@ func Compile(source string) ([]Opcode, error) {
 	}
 	err := matchLoops(result)
 	return result, err
+}
+
+func consolidateRun(source string, start int) int {
+	count := 1
+	for i := start + 1; i < len(source) && source[i] == source[i-1]; i++ {
+		count++
+	}
+	return count
+}
+
+func stripComments(source string) string {
+	pattern := regexp.MustCompile(`[^\+\-\,\.\[\]\<\>]`)
+	return pattern.ReplaceAllLiteralString(source, "")
 }
 
 func matchLoops(ops []Opcode) error {
