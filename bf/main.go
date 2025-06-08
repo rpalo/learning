@@ -47,7 +47,12 @@ func main() {
 			log.Fatal(err)
 		}
 
-		ops := Compile(string(contents))
+		ops, err := Compile(string(contents))
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		if debug {
 			PrintOps(ops)
 		}
@@ -75,6 +80,11 @@ func repl() {
 		if len(line) == 0 {
 			return
 		}
-		EvalBfOps(Compile(line), buffer_size, debug)
+		ops, err := Compile(line)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			EvalBfOps(ops, buffer_size, debug)
+		}
 	}
 }
