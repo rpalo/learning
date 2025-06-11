@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+trap "rm -f .test_out.txt" EXIT
+
+for f in examples/*.json json_test_suite/*.json; do
+    if [[ $f =~ "err_" ]]; then
+        ./jr "$f" &> .test_out.txt
+        if [[ $? -ne 1 ]]; then
+            echo "$f should have errored and didn't."
+            cat .test_out.txt
+            exit 1
+        else
+            echo -n '.'
+        fi
+    else
+        ./jr "$f" &> .test_out.txt
+        if [[ $? -ne 0 ]]; then
+            echo "$f should have run smoothly and didn't."
+            cat .test_out.txt
+            exit 1
+        else
+            echo -n '.'
+        fi
+    fi
+done
+
+# Cleanup is handled by the trap command
+echo ""
+echo "Done.  All tests passed."
