@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+trap "rm -f .test_out.txt" EXIT
 
 for f in examples/*.json json_test_suite/*.json; do
     if [[ $f =~ "err_" ]]; then
@@ -22,6 +23,6 @@ for f in examples/*.json json_test_suite/*.json; do
     fi
 done
 
-rm .test_out.txt
+# Cleanup is handled by the trap command
 echo ""
 echo "Done.  All tests passed."

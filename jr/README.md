@@ -29,6 +29,10 @@ $ ./simple_test
 Done.  All tests passed.
 ```
 
+## Design
+
+Copilot code review recommended I update nesting depth tracking to not use a global variable.  I 100% agree.  Either an extra parameter to list/object parser functions or a context tracking object make sense.  Unfortunately for copilot, I'm out of juice for the day and ready to declare victory.  But I did want to document it as a reasonable improvement.
+
 ## Todo
 
 As-is this is really more of a JSON validator.  I could probably restructure the project to make it an importable package.
