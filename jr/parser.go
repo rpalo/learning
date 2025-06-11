@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -15,7 +16,11 @@ func (e ErrParse) Error() string {
 	return fmt.Sprintf("Error parsing: %s: %s, got %s", e.reason, e.expected, e.actual)
 }
 
-type JsonObject map[string]string
+type JsonAny interface {
+	String() string
+}
+
+type JsonObject map[string]JsonAny
 
 func (o JsonObject) String() string {
 	result := []string{"{"}
@@ -26,7 +31,34 @@ func (o JsonObject) String() string {
 	return strings.Join(result, "\n")
 }
 
-func Parse(tokens []Token) (JsonObject, error) {
+type JsonString string
+
+func (s JsonString) String() string {
+	return string(s)
+}
+
+type JsonNumber float64
+
+func (n JsonNumber) String() string {
+	return strconv.FormatFloat(float64(n), 'f', -1, 64)
+}
+
+type JsonBool bool
+
+func (b JsonBool) String() string {
+	if b {
+		return "true"
+	}
+	return "false"
+}
+
+type JsonNull struct{}
+
+func (n JsonNull) String() string {
+	return "null"
+}
+
+func Parse(tokens []Token) (JsonAny, error) {
 	result, tokens, err := parseObject(tokens)
 	if err != nil {
 		return nil, err
@@ -46,7 +78,7 @@ func parseObject(tokens []Token) (JsonObject, []Token, error) {
 		return nil, nil, err
 	}
 
-	result := make(map[string]string)
+	result := make(map[string]JsonAny)
 
 	if _, err := expectRaw(tokens[1:], "}"); err == nil {
 		remaining, err := advance(tokens, 2)
@@ -70,12 +102,29 @@ func parseObject(tokens []Token) (JsonObject, []Token, error) {
 			return nil, nil, err
 		}
 
-		value, err := expectString(tokens[2:])
-
-		if err != nil {
-			return nil, nil, err
+		switch tokens[2].kind {
+		case TokenString:
+			result[key] = JsonString(tokens[2].value)
+		case TokenNumber:
+			number, err := strconv.ParseFloat(tokens[2].value, 64)
+			if err != nil {
+				return nil, nil, ErrParse{"Invalid number format.", "number", tokens[2].value}
+			}
+			result[key] = JsonNumber(number)
+		case TokenKeyword:
+			switch tokens[2].value {
+			case "true":
+				result[key] = JsonBool(true)
+			case "false":
+				result[key] = JsonBool(false)
+			case "null":
+				result[key] = JsonNull{}
+			default:
+				panic("Unknown keyword: " + tokens[2].value)
+			}
+		default:
+			panic("Unexpected token kind: " + tokenTypeNames[tokens[2].kind] + " for key: " + key)
 		}
-		result[key] = value
 
 		if _, err := expectRaw(tokens[3:], "}"); err == nil {
 			tokens = tokens[3:]
