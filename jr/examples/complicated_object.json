@@ -1,0 +1,22 @@
+{
+    "name": "Complicated Object Example",
+    "details": {
+        "age": 45,
+        "is_active": false,
+        "balance": 1500.50,
+        "preferences": {
+            "notifications": true,
+            "theme": "dark"
+        },
+        "history": [
+            {
+                "date": "2023-01-01",
+                "event": "Account created"
+            },
+            {
+                "date": "2023-06-15",
+                "event": "Balance updated"
+            }
+        ]
+    }
+}

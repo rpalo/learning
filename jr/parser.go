@@ -13,22 +13,31 @@ type ErrParse struct {
 }
 
 func (e ErrParse) Error() string {
-	return fmt.Sprintf("Error parsing: %s: %s, got %s", e.reason, e.expected, e.actual)
+	return fmt.Sprintf("Error parsing: %s: Wanted '%s', got '%s'", e.reason, e.expected, e.actual)
 }
 
 type JsonAny interface {
 	String() string
 }
 
-type JsonObject map[string]JsonAny
+type JsonObject map[JsonString]JsonAny
 
 func (o JsonObject) String() string {
-	result := []string{"{"}
+	result := make([]string, 0)
 	for key, value := range o {
-		result = append(result, fmt.Sprintf("\t%s: %s,", key, value))
+		result = append(result, fmt.Sprintf("%s: %s", key, value))
 	}
-	result = append(result, "}")
-	return strings.Join(result, "\n")
+	return "{" + strings.Join(result, ", ") + "}"
+}
+
+type JsonArray []JsonAny
+
+func (a JsonArray) String() string {
+	result := make([]string, len(a))
+	for i, value := range a {
+		result[i] = value.String()
+	}
+	return "[" + strings.Join(result, ", ") + "]"
 }
 
 type JsonString string
@@ -59,14 +68,64 @@ func (n JsonNull) String() string {
 }
 
 func Parse(tokens []Token) (JsonAny, error) {
-	result, tokens, err := parseObject(tokens)
+	if len(tokens) == 0 {
+		return nil, ErrParse{"No tokens to parse.", "", ""}
+	}
+	result, tokens, err := parseAny(tokens)
 	if err != nil {
 		return nil, err
 	}
 	if len(tokens) > 0 {
-		return nil, ErrParse{"Extra tokens after object.", "", tokens[0].value}
+		return nil, ErrParse{"Extra tokens after parsing.", "", tokens[0].value}
 	}
 	return result, nil
+}
+
+func parseAny(tokens []Token) (JsonAny, []Token, error) {
+	if len(tokens) == 0 {
+		return nil, nil, ErrParse{"No tokens to parse.", "", ""}
+	}
+	switch tokens[0].kind {
+	case TokenString:
+		result, err := parseString(tokens)
+		if err != nil {
+			return nil, nil, err
+		}
+		tokens, err = advance(tokens, 1)
+		return result, tokens, err
+	case TokenNumber:
+		result, err := parseNumber(tokens)
+		if err != nil {
+			return nil, nil, err
+		}
+		tokens, err = advance(tokens, 1)
+		return result, tokens, err
+	case TokenKeyword:
+		switch tokens[0].value {
+		case "true":
+			tokens, err := advance(tokens, 1)
+			return JsonBool(true), tokens, err
+		case "false":
+			tokens, err := advance(tokens, 1)
+			return JsonBool(false), tokens, err
+		case "null":
+			tokens, err := advance(tokens, 1)
+			return JsonNull{}, tokens, err
+		default:
+			return nil, nil, ErrParse{"Unknown keyword.", "", tokens[0].value}
+		}
+	case TokenRaw:
+		switch tokens[0].value {
+		case "{":
+			return parseObject(tokens)
+		case "[":
+			return parseList(tokens)
+		default:
+			return nil, nil, ErrParse{"Unexpected raw token.", "", tokens[0].value}
+		}
+	default:
+		return nil, nil, ErrParse{"Unexpected token kind.", "", tokenTypeNames[tokens[0].kind]}
+	}
 }
 
 func parseObject(tokens []Token) (JsonObject, []Token, error) {
@@ -78,7 +137,7 @@ func parseObject(tokens []Token) (JsonObject, []Token, error) {
 		return nil, nil, err
 	}
 
-	result := make(map[string]JsonAny)
+	result := make(map[JsonString]JsonAny)
 
 	if _, err := expectRaw(tokens[1:], "}"); err == nil {
 		remaining, err := advance(tokens, 2)
@@ -92,8 +151,7 @@ func parseObject(tokens []Token) (JsonObject, []Token, error) {
 			return nil, nil, ErrParse{"Not enough tokens for key-value pair.", "", ""}
 		}
 
-		key, err := expectString(tokens)
-
+		key, err := parseString(tokens)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -102,40 +160,21 @@ func parseObject(tokens []Token) (JsonObject, []Token, error) {
 			return nil, nil, err
 		}
 
-		switch tokens[2].kind {
-		case TokenString:
-			result[key] = JsonString(tokens[2].value)
-		case TokenNumber:
-			number, err := strconv.ParseFloat(tokens[2].value, 64)
-			if err != nil {
-				return nil, nil, ErrParse{"Invalid number format.", "number", tokens[2].value}
-			}
-			result[key] = JsonNumber(number)
-		case TokenKeyword:
-			switch tokens[2].value {
-			case "true":
-				result[key] = JsonBool(true)
-			case "false":
-				result[key] = JsonBool(false)
-			case "null":
-				result[key] = JsonNull{}
-			default:
-				panic("Unknown keyword: " + tokens[2].value)
-			}
-		default:
-			panic("Unexpected token kind: " + tokenTypeNames[tokens[2].kind] + " for key: " + key)
+		var value JsonAny
+		value, tokens, err = parseAny(tokens[2:])
+		if err != nil {
+			return nil, nil, err
 		}
-
-		if _, err := expectRaw(tokens[3:], "}"); err == nil {
-			tokens = tokens[3:]
+		result[key] = value
+		if _, err := expectRaw(tokens, "}"); err == nil {
 			break
 		}
 
-		if _, err := expectRaw(tokens[3:], ","); err != nil {
+		if _, err := expectRaw(tokens, ","); err != nil {
 			return nil, nil, err
 		}
 
-		tokens, _ = advance(tokens, 4)
+		tokens = tokens[1:]
 	}
 
 	if _, err := expectRaw(tokens, "}"); err != nil {
@@ -168,12 +207,72 @@ func expectRaw(tokens []Token, value string) (string, error) {
 	return tokens[0].value, nil
 }
 
-func expectString(tokens []Token) (string, error) {
+func parseString(tokens []Token) (JsonString, error) {
 	if len(tokens) == 0 {
 		return "", ErrParse{"Missing expected string.", "string", ""}
 	}
 	if tokens[0].kind != TokenString {
 		return "", ErrParse{"Expected string.", "string", tokens[0].value}
 	}
-	return tokens[0].value, nil
+	return JsonString(tokens[0].value), nil
+}
+
+func parseNumber(tokens []Token) (JsonNumber, error) {
+	if len(tokens) == 0 {
+		return 0, ErrParse{"Missing expected number.", "number", ""}
+	}
+	if tokens[0].kind != TokenNumber {
+		return 0, ErrParse{"Expected number.", "number", tokens[0].value}
+	}
+	value, err := strconv.ParseFloat(tokens[0].value, 64)
+	if err != nil {
+		return 0, ErrParse{"Invalid number format.", "number", tokens[0].value}
+	}
+	return JsonNumber(value), nil
+}
+
+func parseList(tokens []Token) (JsonArray, []Token, error) {
+	if len(tokens) < 2 {
+		return nil, nil, ErrParse{"Not enough tokens to parse list.", "", ""}
+	}
+
+	if _, err := expectRaw(tokens, "["); err != nil {
+		return nil, nil, err
+	}
+
+	result := make([]JsonAny, 0)
+
+	if _, err := expectRaw(tokens[1:], "]"); err == nil {
+		remaining, err := advance(tokens, 2)
+		return result, remaining, err
+	} else {
+		tokens, _ = advance(tokens, 1)
+	}
+
+	for {
+		value, remainingTokens, err := parseAny(tokens)
+		if err != nil {
+			return nil, nil, err
+		}
+		result = append(result, value)
+		tokens = remainingTokens
+
+		if len(tokens) == 0 {
+			return nil, nil, ErrParse{"Unexpected end of tokens while parsing list.", "", ""}
+		}
+		if tokens[0].value == "]" {
+			break
+		}
+
+		if _, err := expectRaw(tokens, ","); err != nil {
+			return nil, nil, err
+		}
+		tokens = tokens[1:]
+	}
+
+	if _, err := expectRaw(tokens, "]"); err != nil {
+		return nil, nil, err
+	}
+	remaining, err := advance(tokens, 1)
+	return result, remaining, err
 }

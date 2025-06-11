@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-for f in examples/*.json; do
+for f in examples/*.json json_test_suite/*.json; do
     if [[ $f =~ "err_" ]]; then
         ./jr "$f" &> .test_out.txt
         if [[ $? -ne 1 ]]; then

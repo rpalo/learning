@@ -47,7 +47,7 @@ func Lex(reader io.Reader) ([]Token, error) {
 		var more bool
 		var err error
 		switch c := scanner.Text(); c {
-		case "{", "}", ":", ",":
+		case "{", "}", ":", ",", "[", "]":
 			result = append(result, Token{kind: TokenRaw, value: c})
 			more = scanner.Scan()
 		case " ", "\n", "\t":
@@ -114,7 +114,7 @@ func lexString(scanner *bufio.Scanner) (string, bool, error) {
 }
 
 func lexNumber(scanner *bufio.Scanner) (string, bool, error) {
-	chars := make([]string, 0)
+	chars := []string{scanner.Text()}
 	for scanner.Scan() {
 		c := scanner.Text()
 		if !strings.Contains("0123456789.-", c) {
