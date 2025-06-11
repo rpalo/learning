@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+for f in examples/*.json; do
+    if [[ $f =~ "err_" ]]; then
+        ./jr "$f" &> .test_out.txt
+        if [[ $? -ne 1 ]]; then
+            echo "$f should have errored and didn't."
+            cat .test_out.txt
+            exit 1
+        else
+            echo -n '.'
+        fi
+    else
+        ./jr "$f" &> .test_out.txt
+        if [[ $? -ne 0 ]]; then
+            echo "$f should have run smoothly and didn't."
+            cat .test_out.txt
+            exit 1
+        else
+            echo -n '.'
+        fi
+    fi
+done
+
+rm .test_out.txt
+echo ""
+echo "Done.  All tests passed."
