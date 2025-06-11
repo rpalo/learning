@@ -71,7 +71,16 @@ func Parse(tokens []Token) (JsonAny, error) {
 	if len(tokens) == 0 {
 		return nil, ErrParse{"No tokens to parse.", "", ""}
 	}
-	result, tokens, err := parseAny(tokens)
+	if tokens[0].kind != TokenRaw {
+		return nil, ErrParse{"Valid JSON must be either an object or array.", "{[", tokens[0].value}
+	}
+	var result JsonAny
+	var err error
+	if tokens[0].value == "{" {
+		result, tokens, err = parseObject(tokens)
+	} else if tokens[0].value == "[" {
+		result, tokens, err = parseList(tokens)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +145,11 @@ func parseObject(tokens []Token) (JsonObject, []Token, error) {
 	if _, err := expectRaw(tokens, "{"); err != nil {
 		return nil, nil, err
 	}
+	depth++
+	if depth > maxDepth {
+		return nil, nil, ErrParse{"Maximum nesting depth exceeded.", "", ""}
+	}
+	defer func() { depth-- }()
 
 	result := make(map[JsonString]JsonAny)
 
@@ -239,7 +253,11 @@ func parseList(tokens []Token) (JsonArray, []Token, error) {
 	if _, err := expectRaw(tokens, "["); err != nil {
 		return nil, nil, err
 	}
-
+	depth++
+	if depth > maxDepth {
+		return nil, nil, ErrParse{"Maximum nesting depth exceeded.", "", ""}
+	}
+	defer func() { depth-- }()
 	result := make([]JsonAny, 0)
 
 	if _, err := expectRaw(tokens[1:], "]"); err == nil {

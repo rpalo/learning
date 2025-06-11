@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -60,7 +62,7 @@ func Lex(reader io.Reader) ([]Token, error) {
 				return nil, err
 			}
 			result = append(result, Token{kind: TokenString, value: text})
-		case "-", ".", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		case "0", "-", ".", "1", "2", "3", "4", "5", "6", "7", "8", "9":
 			var value string
 			value, more, err = lexNumber(scanner)
 
@@ -100,11 +102,35 @@ func Lex(reader io.Reader) ([]Token, error) {
 	return result, nil
 }
 
+var UnicodeEscapePattern = regexp.MustCompile("[0-9a-fA-F]")
+
 func lexString(scanner *bufio.Scanner) (string, bool, error) {
 	chars := make([]string, 0)
 
 	for scanner.Scan() {
-		if scanner.Text() == "\"" && (len(chars) == 0 || chars[len(chars)-1] != "\\") {
+		if scanner.Text() == "\\" {
+			// Handle escape sequences
+			if !scanner.Scan() {
+				return "", false, ErrLex{"Unterminated string with escape sequence"}
+			}
+			if !strings.Contains("\"\\/bfnrtu", scanner.Text()) {
+				return "", false, ErrLex{"Invalid escape sequence: \\" + scanner.Text()}
+			}
+			if scanner.Text() == "u" {
+				c, err := lexUnicodeEscape(scanner)
+				if err != nil {
+					return "", false, err
+				}
+				chars = append(chars, c)
+				continue
+			}
+			chars = append(chars, scanner.Text())
+			continue
+		}
+		if strings.Contains("\t\n", scanner.Text()) {
+			return "", false, ErrLex{"Character not allowed in string.  Use escape sequences for newlines and tabs."}
+		}
+		if scanner.Text() == "\"" {
 			more := scanner.Scan() // consume the closing quote
 			return strings.Join(chars, ""), more, nil
 		}
@@ -113,16 +139,54 @@ func lexString(scanner *bufio.Scanner) (string, bool, error) {
 	return "", false, ErrLex{"Unterminated string"}
 }
 
+func lexUnicodeEscape(scanner *bufio.Scanner) (string, error) {
+	chars := make([]string, 4)
+	for i := 0; i < 4; i++ {
+		if !scanner.Scan() {
+			return "", ErrLex{"Incomplete unicode escape sequence"}
+		}
+		c := scanner.Text()
+		if !UnicodeEscapePattern.MatchString(c) {
+			return "", ErrLex{"Invalid unicode escape sequence: " + c}
+		}
+		chars[i] = c
+	}
+	result, err := strconv.Unquote(`'\u` + strings.Join(chars, "") + `'`)
+	if err != nil {
+		return "", ErrLex{"Invalid unicode escape sequence: " + strings.Join(chars, "") + err.Error()}
+	}
+	return result, nil
+}
+
 func lexNumber(scanner *bufio.Scanner) (string, bool, error) {
 	chars := []string{scanner.Text()}
 	for scanner.Scan() {
 		c := scanner.Text()
-		if !strings.Contains("0123456789.-", c) {
-			return strings.Join(chars, ""), true, nil
+		if !strings.Contains("0123456789.-+eE", c) {
+			num := strings.Join(chars, "")
+			err := checkInt(num)
+			if err != nil {
+				return "", false, err
+			}
+
+			return num, true, nil
 		}
 		chars = append(chars, c)
 	}
-	return strings.Join(chars, ""), false, nil
+	num := strings.Join(chars, "")
+	err := checkInt(num)
+	if err != nil {
+		return "", false, err
+	}
+
+	return num, true, nil
+}
+
+func checkInt(value string) error {
+	if value[0] == '0' && !strings.Contains(value, ".") && len(value) > 1 {
+		return ErrLex{"Invalid number: leading zero in " + value}
+	}
+	return nil
 }
 
 func scanKeyword(scanner *bufio.Scanner, keyword string) error {

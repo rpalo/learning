@@ -4,7 +4,21 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 )
+
+var depth = 0
+var maxDepth = 19
+
+func init() {
+	if val, found := os.LookupEnv("JR_MAX_DEPTH"); found {
+		parsed, err := strconv.Atoi(val)
+		if err != nil {
+			log.Fatalf("Invalid JR_MAX_DEPTH value: %s", val)
+		}
+		maxDepth = parsed
+	}
+}
 
 func main() {
 	if len(os.Args) != 2 {
