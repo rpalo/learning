@@ -1,5 +1,7 @@
 package main
 
+// lexer.go contains the lexer implementation, separating the input string into tokens.
+
 import (
 	"bufio"
 	"fmt"
@@ -9,6 +11,7 @@ import (
 	"strings"
 )
 
+// ErrLex represents an error encountered during lexing.
 type ErrLex struct {
 	text string
 }
@@ -33,21 +36,23 @@ var tokenTypeNames = map[TokenType]string{
 	TokenKeyword: "Keyword",
 }
 
+// Token is a single individual unit of the input text.
 type Token struct {
 	kind  TokenType
 	value string
 }
 
+// Lex returns a slice of tokens parsed from the input reader.
 func Lex(reader io.Reader) ([]Token, error) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Split(bufio.ScanRunes)
 
 	result := make([]Token, 0)
 	scanner.Scan()
+	var more bool = true
+	var err error
 
-	for {
-		var more bool
-		var err error
+	for more {
 		switch c := scanner.Text(); c {
 		case "{", "}", ":", ",", "[", "]":
 			result = append(result, Token{kind: TokenRaw, value: c})
@@ -104,6 +109,13 @@ func Lex(reader io.Reader) ([]Token, error) {
 
 var UnicodeEscapePattern = regexp.MustCompile("[0-9a-fA-F]")
 
+// lexString reads a string from the scanner, handling escape sequences and unicode escapes.
+//
+// It returns the string, a boolean indicating if there are more characters to read, and an error if any occurred.
+// Some edge cases required by the JSON specification:
+// - Raw newlines and tabs are not allowed and must be escaped.
+// - Unicode escape sequences must be 4 hex digits that evaluate to a valid unicode character.
+// - The only allowed escape sequences are \", \\, \/, \b, \f, \n, \r, \t, and \uXXXX where XXXX is a 4-digit hexadecimal number.
 func lexString(scanner *bufio.Scanner) (string, bool, error) {
 	chars := make([]string, 0)
 
@@ -139,6 +151,8 @@ func lexString(scanner *bufio.Scanner) (string, bool, error) {
 	return "", false, ErrLex{"Unterminated string"}
 }
 
+// lexUnicodeEscape reads and expects 4 hexadecimal digits that form a valid unicode escape sequence, and either returns the
+// successful decoded character or an error.
 func lexUnicodeEscape(scanner *bufio.Scanner) (string, error) {
 	chars := make([]string, 4)
 	for i := 0; i < 4; i++ {
@@ -158,6 +172,9 @@ func lexUnicodeEscape(scanner *bufio.Scanner) (string, error) {
 	return result, nil
 }
 
+// lexNumber reads a number from the scanner, handling integers, floats, and scientific notation.
+//
+// Leading zeros area not allowed on multi-digit integers.
 func lexNumber(scanner *bufio.Scanner) (string, bool, error) {
 	chars := []string{scanner.Text()}
 	for scanner.Scan() {
@@ -182,6 +199,7 @@ func lexNumber(scanner *bufio.Scanner) (string, bool, error) {
 	return num, true, nil
 }
 
+// checkInt checks if the given string represents a valid integer.  Leading zeros are not allowed on multi-digit integers.
 func checkInt(value string) error {
 	if value[0] == '0' && !strings.Contains(value, ".") && len(value) > 1 {
 		return ErrLex{"Invalid number: leading zero in " + value}
@@ -189,6 +207,7 @@ func checkInt(value string) error {
 	return nil
 }
 
+// scans the input for a specific keyword, which is a sequence of characters that must be matched exactly.  It throws an error if a match is not found.
 func scanKeyword(scanner *bufio.Scanner, keyword string) error {
 	for _, c := range keyword {
 		if !scanner.Scan() || scanner.Text() != string(c) {

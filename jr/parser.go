@@ -1,11 +1,14 @@
 package main
 
+// parser.go contains the parser implementation, which takes a slice of tokens and constructs a JSON object or array.
+
 import (
 	"fmt"
 	"strconv"
 	"strings"
 )
 
+// ErrParse represents an error encountered during parsing.
 type ErrParse struct {
 	reason   string
 	expected string
@@ -16,6 +19,7 @@ func (e ErrParse) Error() string {
 	return fmt.Sprintf("Error parsing: %s: Wanted '%s', got '%s'", e.reason, e.expected, e.actual)
 }
 
+// JsonAny is an interface encompassing all internal JSON types.  Valid types are Object, Array, String, Number, Bool, and Null.
 type JsonAny interface {
 	String() string
 }
@@ -67,6 +71,9 @@ func (n JsonNull) String() string {
 	return "null"
 }
 
+// Parse takes a slice of tokens and returns a JsonAny object representing the parsed JSON structure.
+//
+// Only Objects and Arrays are valid at the top level.  No tokens should be left over after parsing.
 func Parse(tokens []Token) (JsonAny, error) {
 	if len(tokens) == 0 {
 		return nil, ErrParse{"No tokens to parse.", "", ""}
@@ -90,6 +97,7 @@ func Parse(tokens []Token) (JsonAny, error) {
 	return result, nil
 }
 
+// parseAny decides which type of JSON value to parse based on the first token.
 func parseAny(tokens []Token) (JsonAny, []Token, error) {
 	if len(tokens) == 0 {
 		return nil, nil, ErrParse{"No tokens to parse.", "", ""}
@@ -137,6 +145,9 @@ func parseAny(tokens []Token) (JsonAny, []Token, error) {
 	}
 }
 
+// parseObject parses a JSON object (key/value pairs) from the provided tokens.
+//
+// It keeps track of the current nesting depth and throws an error if the set maximum is exceeded.
 func parseObject(tokens []Token) (JsonObject, []Token, error) {
 	if len(tokens) < 2 {
 		return nil, nil, ErrParse{"Not enough tokens to parse object.", "", ""}
@@ -198,6 +209,7 @@ func parseObject(tokens []Token) (JsonObject, []Token, error) {
 	return result, remaining, err
 }
 
+// Advance moves the token slice forward by the specified count and handles cases where there are not enough tokens cleanly.
 func advance(tokens []Token, count int) ([]Token, error) {
 	if len(tokens) < count {
 		return nil, ErrParse{"Not enough tokens to advance.", "", ""}
@@ -208,6 +220,7 @@ func advance(tokens []Token, count int) ([]Token, error) {
 	return tokens[count:], nil
 }
 
+// Expect raw extracts a raw token from the beginning of the slice and checks if it matches the expected value.
 func expectRaw(tokens []Token, value string) (string, error) {
 	if len(tokens) == 0 {
 		return "", ErrParse{"Missing expected token.", value, ""}
@@ -221,6 +234,7 @@ func expectRaw(tokens []Token, value string) (string, error) {
 	return tokens[0].value, nil
 }
 
+// parseString extracts a string from the tokens and returns it as a JsonString.
 func parseString(tokens []Token) (JsonString, error) {
 	if len(tokens) == 0 {
 		return "", ErrParse{"Missing expected string.", "string", ""}
@@ -231,6 +245,7 @@ func parseString(tokens []Token) (JsonString, error) {
 	return JsonString(tokens[0].value), nil
 }
 
+// parseNumber extracts a number from the tokens and returns it as a JsonNumber.
 func parseNumber(tokens []Token) (JsonNumber, error) {
 	if len(tokens) == 0 {
 		return 0, ErrParse{"Missing expected number.", "number", ""}
@@ -245,6 +260,8 @@ func parseNumber(tokens []Token) (JsonNumber, error) {
 	return JsonNumber(value), nil
 }
 
+// parseList parses a JSON array from the provided tokens.
+// It keeps track of the current nesting depth and throws an error if the set maximum is exceeded.
 func parseList(tokens []Token) (JsonArray, []Token, error) {
 	if len(tokens) < 2 {
 		return nil, nil, ErrParse{"Not enough tokens to parse list.", "", ""}

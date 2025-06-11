@@ -37,7 +37,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Printf("Got tokens: %v", tokens)
+	// log.Printf("Got tokens: %v", tokens)
 
 	obj, err := Parse(tokens)
 
