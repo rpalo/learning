@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package books;
+
+option go_package = "github.com/rpalo/learning/bookrpc/books";
+
+service Books {
+  // An RPC API for keeping track of books.
+  
+  // CreateList creates a list on behalf of the user
+  rpc CreateList(CreateListRequest) returns (List){};
+
+  // GetList returns the list details and books on that list
+  rpc GetList(GetListRequest) returns (List) {};
+
+  // // DeleteList deletes a user's list
+  // rpc DeleteList() returns (){};
+  //
+  // // AddBookToList adds a book to a particular list
+  // rpc AddBookToList() returns (){};
+  //
+  // // RemoveBookFromList removes a book from a particular list
+  // rpc RemoveBookFromList() returns (){};
+  //
+  // // RateBook lets a user rate a given book
+  // rpc RateBook() returns () {};
+  //
+  // // GetBook returns book details including avg. rating
+  // rpc GetBook() returns () {};
+  //
+  // // StreamEvents streams shelving and rating events as they happen
+  // rpc StreamEvents() returns () {};
+}
+
+message CreateListRequest {
+  string name = 2;
+}
+
+message GetListRequest {
+  string id = 1;
+}
+
+message User {
+  string id = 1;
+  string name = 2;
+}
+
+message Book {
+  string isbn = 1;
+  string title = 2;
+  string author = 3;
+  string description = 4;
+  float avg_rating = 5;
+  int32 user_rating = 6;
+  int32 position = 7;
+}
+
+message List {
+  string id = 1;
+  string name = 2;
+  User owner = 3;
+  repeated Book books = 4;
+}
+
+
